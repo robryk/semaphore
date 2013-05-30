@@ -83,16 +83,20 @@ func TestSemaphore(t *testing.T) {
 }
 
 func BenchmarkSemaphore(b *testing.B) {
-	const P = 5
+	const P = 10
+	const UnitSize = 1000
+	N := int64(b.N / UnitSize / 4)
 	s := newTestSemaphore(P)
 	done := make(chan struct{}, P)
 	for i := 0; i < P; i++ {
 		go func() {
-			for j := 0; j < b.N; j++ {
-				s.Acquire(1)
-				s.Release(1)
-				s.Acquire(2)
-				s.Release(2)
+			for atomic.AddInt64(&N, int64(-1)) > 0 {
+				for j := 0; j < UnitSize; j++ {
+					s.Acquire(1)
+					s.Release(1)
+					s.Acquire(2)
+					s.Release(2)
+				}
 			}
 			done <- struct{}{}
 		}()
@@ -104,5 +108,3 @@ func BenchmarkSemaphore(b *testing.B) {
 		b.Error(err)
 	}
 }
-
-
