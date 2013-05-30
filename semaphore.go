@@ -62,11 +62,16 @@ func (s *Semaphore) Release(n int) {
 	}
 }
 
-// Decreases the semaphore value to 0 and returns the difference. Can sleep.
+// Decreases the semaphore value to 0 and returns the difference.
 func (s *Semaphore) Drain() int {
-	s.acquireMu.Lock()
-	v := atomic.LoadInt64(&s.value)
-	atomic.AddInt64(&s.value, -v)
-	s.acquireMu.Unlock()
-	return int(v)
+	for {
+		v := atomic.LoadInt64(&s.value)
+		if v <= 0 {
+			return 0
+		}
+		if atomic.CompareAndSwapInt64(&s.value, v, 0) {
+			return v
+		}
+	}
+	panic("unreachable")
 }
