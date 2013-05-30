@@ -61,7 +61,7 @@ func newTestSemaphore(value int) *testSemaphore {
 func TestSemaphore(t *testing.T) {
 	const N = 5
 	const M = 1000
-	s := newTestSemaphore(2 * N)
+	s := newTestSemaphore(N)
 	done := make(chan struct{}, N)
 	for i := 0; i < N; i++ {
 		go func() {
