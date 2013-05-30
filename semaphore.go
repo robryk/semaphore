@@ -28,8 +28,15 @@ func (s *Semaphore) Acquire(n int) {
 	if n < 0 {
 		panic("Semaphore.Acquire called with negative decrement")
 	}
+	v := atomic.LoadInt64(&s.value)
+	for v >= int64(n) {
+		if atomic.CompareAndSwapInt64(&s.value, v, v-int64(n)) {
+			return
+		}
+		v = atomic.LoadInt64(&s.value)
+	}
 	s.acquireMu.Lock()
-	v := atomic.AddInt64(&s.value, int64(-n))
+	v = atomic.AddInt64(&s.value, int64(-n))
 	for v < 0 {
 		<-s.wake
 		v = atomic.LoadInt64(&s.value)
