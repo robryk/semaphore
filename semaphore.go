@@ -37,9 +37,12 @@ func (s *Semaphore) Acquire(n int) {
 	}
 	s.acquireMu.Lock()
 	v = atomic.AddInt64(&s.value, int64(-n))
-	for v < 0 {
+	if v < 0 {
 		<-s.wake
 		v = atomic.LoadInt64(&s.value)
+		if v < 0 {
+			panic("semaphore: spurious wakeup")
+		}
 	}
 	s.acquireMu.Unlock()
 }
@@ -54,6 +57,7 @@ func (s *Semaphore) Release(n int) {
 		select {
 		case s.wake <- struct{}{}:
 		default:
+			panic("semaphore: unconsumed wakeup")
 		}
 	}
 }
