@@ -59,13 +59,13 @@ func newTestSemaphore(value int) *testSemaphore {
 }
 
 func TestSemaphore(t *testing.T) {
-	const N = 5
-	const M = 1000
-	s := newTestSemaphore(N)
-	done := make(chan struct{}, N)
-	for i := 0; i < N; i++ {
+	const P = 5
+	const N = 1000
+	s := newTestSemaphore(P)
+	done := make(chan struct{}, P)
+	for i := 0; i < P; i++ {
 		go func() {
-			for j := 0; j < M; j++ {
+			for j := 0; j < N; j++ {
 				s.Acquire(1)
 				s.Release(1)
 				s.Acquire(2)
@@ -74,10 +74,35 @@ func TestSemaphore(t *testing.T) {
 			done <- struct{}{}
 		}()
 	}
-	for i := 0; i < N; i++ {
+	for i := 0; i < P; i++ {
 		<-done
 	}
 	if err := s.Error(); err != "" {
 		t.Error(err)
 	}
 }
+
+func BenchmarkSemaphore(b *testing.B) {
+	const P = 5
+	s := newTestSemaphore(P)
+	done := make(chan struct{}, P)
+	for i := 0; i < P; i++ {
+		go func() {
+			for j := 0; j < b.N; j++ {
+				s.Acquire(1)
+				s.Release(1)
+				s.Acquire(2)
+				s.Release(2)
+			}
+			done <- struct{}{}
+		}()
+	}
+	for i := 0; i < P; i++ {
+		<-done
+	}
+	if err := s.Error(); err != "" {
+		b.Error(err)
+	}
+}
+
+
