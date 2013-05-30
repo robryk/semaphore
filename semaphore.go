@@ -7,9 +7,9 @@ import (
 
 // An integer-valued semaphore
 type Semaphore struct {
-	value int64
+	value     int64
 	acquireMu sync.Mutex
-	wake chan struct{}
+	wake      chan struct{}
 }
 
 // Creates a new semaphore with initial value n. Panics if n is negative.
@@ -19,7 +19,7 @@ func New(n int) *Semaphore {
 	}
 	return &Semaphore{
 		value: int64(n),
-		wake: make(chan struct{}, 1),
+		wake:  make(chan struct{}, 1),
 	}
 }
 
@@ -50,7 +50,7 @@ func (s *Semaphore) Release(n int) {
 		panic("Semaphore.Release called with negative increment")
 	}
 	v := atomic.AddInt64(&s.value, int64(n))
-	if v - int64(n) < 0 && v >= 0 {
+	if v-int64(n) < 0 && v >= 0 {
 		select {
 		case s.wake <- struct{}{}:
 		default:
@@ -66,4 +66,3 @@ func (s *Semaphore) Drain() int {
 	s.acquireMu.Unlock()
 	return int(v)
 }
-

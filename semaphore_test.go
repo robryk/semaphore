@@ -1,14 +1,14 @@
 package semaphore
 
 import (
-	"testing"
 	"sync/atomic"
+	"testing"
 )
 
 type testSemaphore struct {
-	s *Semaphore
+	s     *Semaphore
 	value int64
-	err chan string
+	err   chan string
 }
 
 func (s *testSemaphore) setError(e string) {
@@ -52,16 +52,16 @@ func (s *testSemaphore) Release(n int) {
 
 func newTestSemaphore(value int) *testSemaphore {
 	return &testSemaphore{
-		s: New(value),
+		s:     New(value),
 		value: int64(value),
-		err: make(chan string, 1),
+		err:   make(chan string, 1),
 	}
 }
 
 func TestSemaphore(t *testing.T) {
 	const N = 5
 	const M = 1000
-	s := newTestSemaphore(2*N)
+	s := newTestSemaphore(2 * N)
 	done := make(chan struct{}, N)
 	for i := 0; i < N; i++ {
 		go func() {
