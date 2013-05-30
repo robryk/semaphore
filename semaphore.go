@@ -1,16 +1,15 @@
 package semaphore
 
 import (
-	"sync"
 	"sync/atomic"
 	"time"
 )
 
 // An integer-valued semaphore
 type Semaphore struct {
-	value     int64
-	acquireMu sync.Mutex
-	wake      chan struct{}
+	value     int64         // the value of the semaphore, accessed via atomic operations only
+	acquireMu chan struct{} // used as a mutex to gate goroutines that are going to sleep when acquiring the semaphore
+	wake      chan struct{} // used to notify a sleeping goroutine that the semaphore is once more positive
 }
 
 // Creates a new semaphore with initial value n. Panics if n is negative.
@@ -18,9 +17,12 @@ func New(n int) *Semaphore {
 	if n < 0 {
 		panic("negative initial value for a semaphore")
 	}
+	ch := make(chan struct{}, 1)
+	ch <- struct{}{}
 	return &Semaphore{
-		value: int64(n),
-		wake:  make(chan struct{}, 1),
+		value:     int64(n),
+		acquireMu: ch,
+		wake:      make(chan struct{}, 1),
 	}
 }
 
@@ -39,8 +41,15 @@ func (s *Semaphore) AcquireCancellable(n int, cancel <-chan struct{}) bool {
 		v = atomic.LoadInt64(&s.value)
 	}
 
-	s.acquireMu.Lock()
-	defer s.acquireMu.Unlock()
+	select {
+	case <-cancel:
+		return false
+	case <-s.acquireMu:
+	}
+	defer func() {
+		s.acquireMu <- struct{}{}
+	}()
+
 	v = atomic.AddInt64(&s.value, int64(-n))
 	for v < 0 {
 		select {

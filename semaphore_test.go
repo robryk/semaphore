@@ -163,6 +163,24 @@ func TestCancelConcurrent(t *testing.T) {
 	}
 }
 
+func TestPromptCancel(t *testing.T) {
+	s := New(0)
+	result := make(chan bool)
+	go func() {
+		result <- s.AcquireCancellable(1, nil)
+	}()
+	time.Sleep(time.Duration(100) * time.Millisecond)
+	cancel := make(chan struct{}, 1)
+	cancel <- struct{}{}
+	if s.AcquireCancellable(1, cancel) == true {
+		t.Fatal("AcquireCancellable succeeded on a zero-valued semaphore.")
+	}
+	s.Release(1)
+	if <-result != true {
+		t.Fatal("AcquireCancellable spuriously failed.")
+	}
+}
+
 func BenchmarkSemaphore(b *testing.B) {
 	const P = 10
 	const UnitSize = 1000
