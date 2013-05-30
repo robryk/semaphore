@@ -26,9 +26,9 @@ func New(n int) *Semaphore {
 	}
 }
 
-// Tries to decrease the semaphore's value by n. If it is smaller than n, waits until it grows large enough.
-// If the cancel channel becomes readable before that happens, the request is cancelled. Returns true if the semaphore
-// was decreased, false if the operation was cancelled.
+// Tries to decrease the semaphore's value by n. Panics if n is negative. If it is smaller than n, waits until it grows
+// large enough. If the cancel channel becomes readable before that happens, the request is cancelled. Returns true
+// if the semaphore was decreased, false if the operation was cancelled.
 func (s *Semaphore) AcquireCancellable(n int, cancel <-chan struct{}) bool {
 	if n < 0 {
 		panic("Semaphore.Acquire called with negative decrement")
@@ -63,13 +63,14 @@ func (s *Semaphore) AcquireCancellable(n int, cancel <-chan struct{}) bool {
 	return true
 }
 
-// Tries to decrease the semaphore's value by n. If it is smaller than n, waits until it grows large enough.
+// Tries to decrease the semaphore's value by n. Panics if n is negative. If it is smaller than n, waits until it grows
+// large enough.
 func (s *Semaphore) Acquire(n int) {
 	s.AcquireCancellable(n, nil)
 }
 
-// Tries to decrease the semaphore's value by n. If it is smaller than n, waits until it grows large enough
-// or until delay has passed. Returns true on success and false on timeout.
+// Tries to decrease the semaphore's value by n. Panics if n is negative. If it is smaller than n, waits until it grows
+// large enough or until delay has passed. Returns true on success and false on timeout.
 func (s *Semaphore) TimedAcquire(n int, delay time.Duration) bool {
 	cancel := make(chan struct{})
 	go func() {
@@ -79,7 +80,7 @@ func (s *Semaphore) TimedAcquire(n int, delay time.Duration) bool {
 	return s.AcquireCancellable(n, cancel)
 }
 
-// Increases the semaphore's value by n. Will never sleep.
+// Increases the semaphore's value by n. Panics if n is negative. Will never sleep.
 func (s *Semaphore) Release(n int) {
 	if n < 0 {
 		panic("Semaphore.Release called with negative increment")
@@ -93,7 +94,7 @@ func (s *Semaphore) Release(n int) {
 	}
 }
 
-// Decreases the semaphore value to 0 and returns the difference.
+// Decreases the semaphore value to 0 and returns the difference. Will never sleep.
 func (s *Semaphore) Drain() int {
 	for {
 		v := atomic.LoadInt64(&s.value)
