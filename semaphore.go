@@ -3,6 +3,7 @@ package semaphore
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // An integer-valued semaphore
@@ -24,27 +25,49 @@ func New(n int) *Semaphore {
 }
 
 // Tries to decrease the semaphore's value by n. If it is smaller than n, waits until it grows large enough.
-func (s *Semaphore) Acquire(n int) {
+// If the cancel channel becomes readable before that happens, the request is cancelled. Returns true if the semaphore
+// was decreased, false if the operation was cancelled.
+func (s *Semaphore) AcquireCancellable(n int, cancel <-chan struct{}) bool {
 	if n < 0 {
 		panic("Semaphore.Acquire called with negative decrement")
 	}
 	v := atomic.LoadInt64(&s.value)
 	for v >= int64(n) {
 		if atomic.CompareAndSwapInt64(&s.value, v, v-int64(n)) {
-			return
+			return true
 		}
 		v = atomic.LoadInt64(&s.value)
 	}
+
 	s.acquireMu.Lock()
+	defer s.acquireMu.Unlock()
 	v = atomic.AddInt64(&s.value, int64(-n))
-	if v < 0 {
-		<-s.wake
-		v = atomic.LoadInt64(&s.value)
-		if v < 0 {
-			panic("semaphore: spurious wakeup")
+	for v < 0 {
+		select {
+		case <-cancel:
+			atomic.AddInt64(&s.value, int64(n))
+			return false
+		case <-s.wake:
+			v = atomic.LoadInt64(&s.value)
 		}
 	}
-	s.acquireMu.Unlock()
+	return true
+}
+
+// Tries to decrease the semaphore's value by n. If it is smaller than n, waits until it grows large enough.
+func (s *Semaphore) Acquire(n int) {
+	s.AcquireCancellable(n, nil)
+}
+
+// Tries to decrease the semaphore's value by n. If it is smaller than n, waits until it grows large enough
+// or until delay has passed. Returns true on success and false on timeout.
+func (s *Semaphore) TimedAcquire(n int, delay time.Duration) bool {
+	cancel := make(chan struct{})
+	go func() {
+		time.Sleep(delay)
+		close(cancel)
+	}()
+	return s.AcquireCancellable(n, cancel)
 }
 
 // Increases the semaphore's value by n. Will never sleep.
@@ -57,7 +80,6 @@ func (s *Semaphore) Release(n int) {
 		select {
 		case s.wake <- struct{}{}:
 		default:
-			panic("semaphore: unconsumed wakeup")
 		}
 	}
 }
