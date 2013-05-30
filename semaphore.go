@@ -70,7 +70,7 @@ func (s *Semaphore) Drain() int {
 			return 0
 		}
 		if atomic.CompareAndSwapInt64(&s.value, v, 0) {
-			return v
+			return int(v)
 		}
 	}
 	panic("unreachable")
