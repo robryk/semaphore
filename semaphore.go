@@ -73,10 +73,10 @@ func (s *Semaphore) Acquire(n int) {
 // large enough or until delay has passed. Returns true on success and false on timeout.
 func (s *Semaphore) TimedAcquire(n int, delay time.Duration) bool {
 	cancel := make(chan struct{})
-	go func() {
-		time.Sleep(delay)
+	timer := time.AfterFunc(delay, func() {
 		close(cancel)
-	}()
+	})
+	defer timer.Stop()
 	return s.AcquireCancellable(n, cancel)
 }
 
