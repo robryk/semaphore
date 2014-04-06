@@ -37,6 +37,17 @@ func (s *testSemaphore) Acquire(n int) {
 	}
 }
 
+func (s *testSemaphore) TimedAcquire(n int, delay time.Duration) bool {
+	result := s.s.TimedAcquire(n, delay)
+	if result {
+		v := atomic.AddInt64(&s.value, int64(-n))
+		if v < 0 {
+			s.setError("TimedAcquire lowered the semaphore to a negative value")
+		}
+	}
+	return result
+}
+
 func (s *testSemaphore) Drain() int {
 	n := s.s.Drain()
 	v := atomic.AddInt64(&s.value, int64(-n))
@@ -130,6 +141,20 @@ func TestCancel(t *testing.T) {
 	}
 }
 
+func TestTimedAcquire(t *testing.T) {
+	s := New(1)
+	if s.TimedAcquire(1, time.Duration(100)*time.Millisecond) != true {
+		t.Fatal("TimedAcquire spuriously failed")
+	}
+	s.Release(1)
+	if s.TimedAcquire(2, time.Duration(100)*time.Millisecond) != false {
+		t.Fatal("TimedAcquire incorrectly succeeded")
+	}
+	if v := s.Drain(); v != 1 {
+		t.Errorf("Drain drained %d units when %d should have been available", v, 1)
+	}
+}
+
 func TestCancelConcurrent(t *testing.T) {
 	const M = 5
 	const N = 5
@@ -195,6 +220,35 @@ func BenchmarkSemaphore(b *testing.B) {
 					s.Release(1)
 					s.Acquire(2)
 					s.Release(2)
+				}
+			}
+			done <- struct{}{}
+		}()
+	}
+	for i := 0; i < P; i++ {
+		<-done
+	}
+	if err := s.Error(); err != "" {
+		b.Error(err)
+	}
+}
+
+func BenchmarkTimedAcquire(b *testing.B) {
+	const P = 10
+	const UnitSize = 1000
+	N := int64(b.N / UnitSize / 4)
+	s := newTestSemaphore(P)
+	done := make(chan struct{}, P)
+	for i := 0; i < P; i++ {
+		go func() {
+			for atomic.AddInt64(&N, int64(-1)) > 0 {
+				for j := 0; j < UnitSize; j++ {
+					if s.TimedAcquire(1, time.Duration(100)*time.Millisecond) {
+						s.Release(1)
+					}
+					if s.TimedAcquire(2, time.Duration(100)*time.Millisecond) {
+						s.Release(2)
+					}
 				}
 			}
 			done <- struct{}{}
