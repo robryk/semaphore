@@ -72,6 +72,13 @@ func (s *Semaphore) Acquire(n int) {
 // Tries to decrease the semaphore's value by n. Panics if n is negative. If it is smaller than n, waits until it grows
 // large enough or until delay has passed. Returns true on success and false on timeout.
 func (s *Semaphore) TimedAcquire(n int, delay time.Duration) bool {
+	// Fast path: we can acquire the semaphore right now
+	closed := make(chan struct{})
+	close(closed)
+	if s.AcquireCancellable(n, closed) {
+		return true
+	}
+
 	cancel := make(chan struct{})
 	timer := time.AfterFunc(delay, func() {
 		close(cancel)
